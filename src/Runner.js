@@ -52,7 +52,7 @@ export class Runner {
                 
             } else {
             
-                node[key](test, promise.resolve);
+                node[key](test, val => promise.resolve(val));
             }
             
             return promise.future;

@@ -80,7 +80,7 @@ var Runner = es6now.Class(null, function(__super) { return {
                 
             } else {
             
-                node[key](test, promise.resolve);
+                node[key](test, (function(val) { return promise.resolve(val); }));
             }
             
             return promise.future;
