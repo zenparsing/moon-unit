@@ -55,8 +55,47 @@ function cycleError() {
 function Future(dispatch) {
     
     this[DISPATCH] = dispatch;
-    this.then = (a, b) => when(this, a, b);
 }
+
+// Registers a callback for completion when a future is complete
+Future.prototype.then = function then(onSuccess, onFail) {
+
+    onSuccess || (onSuccess = identity);
+    
+    var resolve = value => finish(value, onSuccess),
+        reject = value => finish(value, onFail),
+        promise = new Promise(onQueue),
+        target = this,
+        done = false;
+    
+    onQueue(onSuccess, onFail);
+    
+    return promise.future;
+    
+    function onQueue(success, error) {
+    
+        if (success && resolve) {
+        
+            enqueue(target, [ resolve, null ]);
+            resolve = null;
+        }
+        
+        if (error && reject) {
+        
+            enqueue(target, [ null, reject ]);
+            reject = null;
+        }
+    }
+    
+    function finish(value, transform) {
+    
+        if (!done) {
+        
+            done = true;
+            promise.resolve(applyTransform(transform, value));
+        }
+    }
+};
 
 // Begins a deferred operation
 function Promise(onQueue) {
@@ -112,7 +151,7 @@ function Promise(onQueue) {
         pending = false;
         
         // Create a future from the provided value
-        next = toFuture(value);
+        next = when(value);
 
         // Send internally queued messages to the next future
         for (i = 0; i < list.length; ++i)
@@ -149,8 +188,8 @@ function Promise(onQueue) {
     }
 }
 
-// Coerces an object to a future
-function toFuture(obj) {
+// Returns a future for an object
+function when(obj) {
 
     if (obj && obj[DISPATCH])
         return obj;
@@ -183,46 +222,6 @@ function failure(value) {
     return freeze(future);
 }
 
-// Registers a callback for completion when a future is complete
-function when(obj, onSuccess, onFail) {
-    
-    onSuccess || (onSuccess = identity);
-    
-    var resolve = value => finish(value, onSuccess),
-        reject = value => finish(value, onFail),
-        promise = new Promise(onQueue),
-        target = toFuture(obj),
-        done = false;
-    
-    onQueue(onSuccess, onFail);
-    
-    return promise.future;
-    
-    function onQueue(success, error) {
-    
-        if (success && resolve) {
-        
-            enqueue(target, [ resolve, null ]);
-            resolve = null;
-        }
-        
-        if (error && reject) {
-        
-            enqueue(target, [ null, reject ]);
-            reject = null;
-        }
-    }
-    
-    function finish(value, transform) {
-    
-        if (!done) {
-        
-            done = true;
-            promise.resolve(applyTransform(transform, value));
-        }
-    }
-}
-
 // Applies a promise transformation function
 function applyTransform(transform, value) {
 
@@ -248,7 +247,7 @@ function whenAll(list) {
     
     function waitFor(f, index) {
     
-        when(f, val => { 
+        when(f).then(val => { 
         
             out[index] = val;
             
@@ -263,7 +262,7 @@ function whenAll(list) {
 }
 
 // Returns a future for the first completed future in an array
-function whenAny(list) {
+function whenAny(list, onSuccess, onFail) {
 
     if (list.length === 0)
         throw new Error(EMPTY_LIST_MSG);
@@ -271,7 +270,7 @@ function whenAny(list) {
     var promise = new Promise(), i;
     
     for (i = 0; i < list.length; ++i)
-        when(list[i], val => promise.resolve(val), err => promise.reject(err));
+        when(list[i]).then(val => promise.resolve(val), err => promise.reject(err));
     
     return promise.future;
 }
@@ -355,6 +354,6 @@ asap = global => {
 Promise.when = when;
 Promise.whenAny = whenAny;
 Promise.whenAll = whenAll;
-Promise.failure = failure;
+Promise.reject = failure;
 
 export Promise;

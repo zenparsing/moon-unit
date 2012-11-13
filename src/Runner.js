@@ -43,7 +43,7 @@ export class Runner {
         
         test.name(key);
         
-        return Promise.when(null, val => {
+        return Promise.when(null).then(val => {
         
             if (node[key].length < 2) {
             
