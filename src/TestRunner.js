@@ -4,7 +4,7 @@ import Promise from "Promise.js";
 import Test from "Test.js";
 import Logger from "Logger.js";
 
-export class Runner {
+export class TestRunner {
 
     constructor() {
     
@@ -31,38 +31,32 @@ export class Runner {
     
     _exec(node, key) {
     
-        var test = new Test(data => { this.logger.log(data); }),
-            promise = new Promise;
+        var promise = new Promise;
         
-        // Inject dependencies into test object
-        Object.keys(this.injections).forEach(k => {
+        var test = new Test({
         
-            if (test[k] === void 0)
-                test[k] = this.injections[k];
+            log: data => this.logger.log(data),
+            done: val => promise.resolve(val)
         });
         
+        // Give the test a default name
         test.name(key);
         
         return Promise.when(null).then(val => {
         
-            if (node[key].length < 2) {
+            node[key](test, this.injections);
             
-                node[key](test);
+            if (!test.async)
                 promise.resolve(null);
-                
-            } else {
-            
-                node[key](test, val => promise.resolve(val));
-            }
             
             return promise.future;
         });
     }
     
     _visit(node) {
+    
+        return Promise.forEach(Object.keys(node), k => {
         
-        return Object.keys(node).reduce((prev, k) => prev.then(val => {
-            
             if (typeof node[k] === "function") {
         
                 return this._exec(node, k);
@@ -72,7 +66,6 @@ export class Runner {
                 this.logger.pushGroup(k);
                 return this._visit(node[k]).then(val => this.logger.popGroup());
             }
-            
-        }), Promise.when(null)).then(val => this);
+        });
     }
 }

@@ -1,11 +1,11 @@
 "use strict";
 
-import Runner from "Runner.js";
+import TestRunner from "TestRunner.js";
 import Logger from "Logger.js";
 
-export function run(tests) {
+export function runTests(tests) {
 
-    return new Runner().run(tests);
+    return new TestRunner().run(tests);
 }
 
-export Runner;
+export TestRunner;

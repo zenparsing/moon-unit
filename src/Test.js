@@ -69,11 +69,21 @@ function equal(a, b) {
 
 export class Test {
 
-	constructor(log) {
+	constructor(opt) {
+	
+	    
 	
 		this._name = "";
 		this._not = false;
-		this._log = log;
+		this._log = opt.log;
+		this._done = opt.done;
+		
+		this.async = false;
+	}
+	
+	_(name) {
+	    this._name = name;
+	    return this;
 	}
 	
 	name(name) {
@@ -88,6 +98,11 @@ export class Test {
 		return this;
 	}
 	
+	done() {
+	
+	    return this._done();
+	}
+	
 	assert(val) {
 	
 		return this._assert(val, {
@@ -96,7 +111,7 @@ export class Test {
 		});
 	}
 	
-	equal(actual, expected) {
+	equals(actual, expected) {
 	
 		return this._assert(equal(actual, expected), {
 		
