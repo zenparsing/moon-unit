@@ -1,5 +1,3 @@
-"use strict";
-
 var console = this.console || { log() {} },
     window = this.window;
 

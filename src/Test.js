@@ -1,5 +1,3 @@
-"use strict";
-
 var OP_toString = Object.prototype.toString,
     OP_hasOwnProperty = Object.prototype.hasOwnProperty;
 
@@ -70,8 +68,6 @@ function equal(a, b) {
 export class Test {
 
 	constructor(opt) {
-	
-	    
 	
 		this._name = "";
 		this._not = false;

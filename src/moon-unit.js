@@ -1,5 +1,3 @@
-"use strict";
-
 import TestRunner from "TestRunner.js";
 import Logger from "Logger.js";
 

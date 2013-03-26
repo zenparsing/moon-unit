@@ -1,5 +1,3 @@
-"use strict";
-
 import Promise from "Promise.js";
 import Test from "Test.js";
 import Logger from "Logger.js";
