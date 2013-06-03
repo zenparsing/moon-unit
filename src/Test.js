@@ -67,17 +67,18 @@ function equal(a, b) {
 
 export class Test {
 
-	constructor(opt) {
+	constructor(logger, done) {
 	
 		this._name = "";
 		this._not = false;
-		this._log = opt.log;
-		this._done = opt.done;
+		this._logger = logger;
+		this._done = done;
 		
 		this.async = false;
 	}
 	
 	_(name) {
+	
 	    this._name = name;
 	    return this;
 	}
@@ -139,6 +140,11 @@ export class Test {
 		});
 	}
 	
+	comment(msg) {
+	
+	    this._logger.comment(msg);
+	}
+	
 	_assert(pred, data) {
 	
 		var pass = !!pred, 
@@ -154,7 +160,7 @@ export class Test {
 		obj = { name: this._name, pass: pass, method: method };
 		Object.keys(data).forEach(k => obj[k] || (obj[k] = data[k]));
 		
-		this._log(obj);
+		this._logger.log(obj);
 		this._not = false;
 		
 		return this;

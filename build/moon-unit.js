@@ -1,118 +1,315 @@
-/*=es6now=*/(function(fn, deps) { if (typeof exports !== 'undefined') fn.call(typeof global === 'object' ? global : this, require, exports); else if (typeof __MODULE === 'function') __MODULE(fn, deps); else if (typeof define === 'function' && define.amd) define(['require', 'exports'].concat(deps), fn); else if (typeof window !== 'undefined' && "MoonUnit") fn.call(window, null, window["MoonUnit"] = {}); else fn.call(window || this, null, {}); })(function(require, exports) { "use strict"; 
+/*=es6now=*/(function(fn, deps, name) { if (typeof exports !== 'undefined') fn.call(typeof global === 'object' ? global : this, require, exports); else if (typeof __MODULE === 'function') __MODULE(fn, deps); else if (typeof define === 'function' && define.amd) define(['require', 'exports'].concat(deps), fn); else if (typeof window !== 'undefined' && name) fn.call(window, null, window[name] = {}); else fn.call(window || this, null, {}); })(function(require, exports) { 'use strict'; function __load(p) { var e = require(p); return typeof e === 'object' ? e : { module: e }; } var __this = this; var Promise__ = (function(exports) {
 
-var __modules = [], __exports = [], __global = this; 
+var EventLoop = (function(exports) {
 
-function __require(i, obj) { 
-    var e = __exports; 
-    if (e[i] !== void 0) return e[i]; 
-    __modules[i].call(__global, e[i] = (obj || {})); 
-    return e[i]; 
-} 
+    var queueOuter;
+    
+    var process = this.process,
+        window = this.window,
+        msgChannel = null,
+        list = [];
+    
+    if (process && typeof process.nextTick === "function") {
+    
+        queueOuter = process.nextTick;
+        
+    } else if (typeof setImmediate === "function") {
+    
+        queueOuter = window ?
+            window.setImmediate.bind(window) :
+            setImmediate;
+   
+    } else if (window && window.MessageChannel) {
+        
+        msgChannel = new window.MessageChannel();
+        msgChannel.port1.onmessage = (function($) { if (list.length) list.shift()(); });
+    
+        queueOuter = (function(fn) {
+        
+            list.push(fn);
+            msgChannel.port2.postMessage(0);
+        });
+    
+    } else {
+    
+        queueOuter = (function(fn) { return setTimeout(fn, 0); });
+    }
+exports.queueOuter = queueOuter; return exports; }).call(this, {});
 
-__modules[0] = function(exports) {
-var TestRunner = __require(1).TestRunner;
-var Logger = __require(2).Logger;
+var queueOuter = EventLoop.queueOuter;
 
-function runTests(tests) {
+var queue = [],
+    throwList = [],
+    waiting = false;
 
-    return new TestRunner().run(tests);
+var PENDING = 0,
+    FULFILLED = 1,
+    REJECTED = 2;
+
+// Enqueues a future callback dispatch
+function enqueue(fn) {
+
+    queue.push(fn);
+    
+    if (!waiting) {
+    
+        waiting = true;
+        queueOuter(flush);
+    }
+}
+
+// Flushes the message queue
+function flush() {
+
+    var count;
+    
+    // Send each message in queue
+    while (queue.length > 0)
+        for (count = queue.length; count > 0; --count)
+            queue.shift()();
+    
+    waiting = false;
+    
+    checkpoint();
+}
+
+// Forces a checkpoint on the future graph, throwing an error
+// if any rejected nodes do not have outgoing edges
+function checkpoint() {
+
+    var item;
+
+    while (throwList.length) {
+    
+        item = throwList.shift();
+        
+        if (item.resolver.throwable)
+            throw item.error;
+    }
+}
+
+// Promise class
+function Promise(init) {
+
+    var fulfillList = [],
+        rejectList = [],
+        value = null,
+        state = PENDING,
+        future = this,
+        resolver;
+
+    this.then = then;
+    this.catch = (function(onReject) { return then(null, onReject); });
+    
+    init.call(this, resolver = { fulfill: fulfill, resolve: resolve, reject: reject, throwable: false });
+
+    // Dispatch function for future
+    function dispatch() {
+
+        var list = state === FULFILLED ? fulfillList : rejectList;
+        
+        while (list.length)
+            list.shift()(value);
+        
+        fulfillList = [];
+        rejectList = [];
+    }
+    
+    // Resolves the future with a value
+    function fulfill(val) {
+    
+        if (state) return;
+        
+        value = val;
+        state = FULFILLED;
+        enqueue(dispatch);
+    }
+
+    // Resolves the future
+    function resolve(value) {
+
+        if (state) return;
+        
+        if (value && typeof value.then === "function") {
+        
+            try { value.then(fulfill, reject); }
+            catch (ex) { reject(ex); }
+            
+        } else {
+        
+            fulfill(value);
+        }
+    }
+
+    // Resolves the future with an error
+    function reject(error) {
+
+        if (state) return;
+        
+        value = error;
+        state = REJECTED;
+        enqueue(dispatch);
+        
+        if (resolver.throwable)
+            throwList.push({ resolver: resolver, error: error });
+    }
+    
+    // Chains a future
+    function then(onFulfill, onReject) {
+    
+        if (typeof onFulfill !== "function") onFulfill = null;
+        if (typeof onReject !== "function") onReject = null;
+            
+        var done = false,
+            resolveNext,
+            rejectNext;
+        
+        var next = new Promise((function(r) {
+        
+            // Nodes with incomming edges are throwable
+            r.throwable = true;
+            resolveNext = r.resolve;
+            rejectNext = r.reject;
+        }));
+        
+        // Nodes with outgoing edges are not throwable
+        resolver.throwable = false;
+        
+        // Add sucess and error handlers
+        fulfillList.push((function(value) { return transform(value, false); }));
+        rejectList.push((function(value) { return transform(value, true); }));
+        
+        // Dispatch handlers if future is resolved
+        if (state) enqueue(dispatch);
+        
+        return next;
+        
+        function transform(value, rejected) {
+        
+            if (done) return;
+            done = true;
+           
+            var fn = rejected ? onReject : onFulfill;
+            
+            if (fn) {
+            
+                try { 
+                
+                    value = fn.call(next, value);
+                    rejected = false;
+                
+                } catch (ex) { 
+                
+                    value = ex;
+                    rejected = true;
+                }
+            }
+            
+            if (rejected) rejectNext(value);
+            else resolveNext(value);
+        }
+    }
+}
+
+Promise.resolve = (function(value) { return new Promise((function(r) { return r.resolve(value); })); });
+
+Promise.fulfill = (function(value) { return new Promise((function(r) { return r.fulfill(value); })); });
+
+Promise.reject = (function(value) { return new Promise((function(r) { return r.reject(value); })); });
+
+Promise.any = (function(values) { return new Promise((function(resolver) {
+
+    var empty = true;
+    
+    values.forEach((function(value) {
+    
+        empty = false;
+        Promise.resolve(value).then(resolver.resolve, resolver.reject);
+    }));
+    
+    if (empty) 
+        resolver.resolve(void 0);
+})); });
+
+Promise.all = (function(values) { return new Promise((function(resolver) {
+
+    var results = [],
+        remaining = 0;
+    
+    values.forEach((function(value, index) {
+    
+        ++remaining;
+        
+        Promise.resolve(value).then((function(v) {
+        
+            results[index] = v;
+            
+            if (--remaining === 0)
+                resolver.resolve(results);
+        
+        }), resolver.reject);
+    }));
+    
+    if (remaining === 0) 
+        resolver.resolve(void 0);
+})); });
+
+Promise.some = (function(values) { return new Promise((function(resolver) {
+
+    var errors = [],
+        remaining = 0;
+    
+    values.forEach((function(value, index) {
+    
+        ++remaining;
+        
+        Promise.resolve(value).then(resolver.resolve, (function(err) {
+        
+            errors[index] = err;
+            
+            if (--remaining === 0)
+                resolver.reject(errors);
+        }));
+    }));
+    
+    if (remaining === 0) 
+        resolver.resolve(void 0);
+})); });
+
+
+exports.Promise = Promise; return exports; }).call(this, {});
+
+var PromiseFlow = (function(exports) {
+
+var Promise = Promise__.Promise;
+
+function iterate(fn) {
+
+    var done = false,
+        stop = (function(val) { done = true; return val; }),
+        next = (function(last) { return done ? last : Promise.resolve(fn(stop)).then(next); });
+    
+    return Promise.resolve().then(next);
+}
+
+function forEach(list, fn) {
+
+    var i = -1;
+    return iterate((function(stop) { return (++i >= list.length) ? stop() : fn(list[i], i, list); }));
 }
 
 
-exports.runTests = runTests;
-exports.TestRunner = TestRunner;
-};
+exports.iterate = iterate; exports.forEach = forEach; return exports; }).call(this, {});
 
-__modules[1] = function(exports) {
-var __this = this; var Promise = __require(3).Promise;
-var Test = __require(4).Test;
-var Logger = __require(2).Logger;
+var Promise_ = (function(exports) {
 
-var TestRunner = es6now.Class(function(__super) { return {
+Object.keys(Promise__).forEach(function(k) { exports[k] = Promise__[k]; });
+Object.keys(PromiseFlow).forEach(function(k) { exports[k] = PromiseFlow[k]; });
 
-    constructor: function() {
-    
-        this.logger = new Logger;
-        this.injections = {};
-    },
-    
-    inject: function(obj) { var __this = this; 
-    
-        Object.keys(obj || {}).forEach((function(k) { return __this.injections[k] = obj[k]; }));
-        return this;
-    },
-    
-    run: function(tests) { var __this = this; 
-    
-        this.logger.clear();
-        
-        return this._visit(tests).then((function(val) {
-        
-            __this.logger.end();
-            return __this;
-        }));
-    },
-    
-    _exec: function(node, key) { var __this = this; 
-    
-        var promise = new Promise;
-        
-        var test = new Test({
-        
-            log: (function(data) { return __this.logger.log(data); }),
-            done: (function(val) { return promise.resolve(val); })
-        });
-        
-        // Give the test a default name
-        test.name(key);
-        
-        return Promise.when(null).then((function(val) {
-        
-            node[key](test, __this.injections);
-            
-            if (!test.async)
-                promise.resolve(null);
-            
-            return promise.future;
-        }));
-    },
-    
-    _visit: function(node) { var __this = this; 
-    
-        return Promise.forEach(Object.keys(node), (function(k) {
-        
-            if (typeof node[k] === "function") {
-        
-                return __this._exec(node, k);
-            
-            } else {
-            
-                __this.logger.pushGroup(k);
-                return __this._visit(node[k]).then((function(val) { return __this.logger.popGroup(); }));
-            }
-        }));
-    }
-}});
+return exports; }).call(this, {});
 
-exports.TestRunner = TestRunner;
-};
+var Test_ = (function(exports) {
 
-__modules[2] = function(exports) {
-var HtmlLogger = __require(5).HtmlLogger;
-var NodeLogger = __require(6).NodeLogger;
-
-var Logger = (typeof this.process === "object" && process.cwd) ?
-    NodeLogger :
-    HtmlLogger;
-
-exports.Logger = Logger;
-};
-
-__modules[3] = function(exports) {
-var _M0 = __require(7); Object.keys(_M0).forEach(function(k) { exports[k] = _M0[k]; });
-};
-
-__modules[4] = function(exports) {
 var OP_toString = Object.prototype.toString,
     OP_hasOwnProperty = Object.prototype.hasOwnProperty;
 
@@ -180,21 +377,20 @@ function equal(a, b) {
 	return true;
 }
 
-var Test = es6now.Class(function(__super) { return {
+var Test = __class(function(__super) { return {
 
-	constructor: function(opt) {
-	
-	    
+	constructor: function(logger, done) {
 	
 		this._name = "";
 		this._not = false;
-		this._log = opt.log;
-		this._done = opt.done;
+		this._logger = logger;
+		this._done = done;
 		
 		this.async = false;
 	},
 	
 	_: function(name) {
+	
 	    this._name = name;
 	    return this;
 	},
@@ -256,6 +452,11 @@ var Test = es6now.Class(function(__super) { return {
 		});
 	},
 	
+	comment: function(msg) {
+	
+	    this._logger.comment(msg);
+	},
+	
 	_assert: function(pred, data) {
 	
 		var pass = !!pred, 
@@ -271,7 +472,7 @@ var Test = es6now.Class(function(__super) { return {
 		obj = { name: this._name, pass: pass, method: method };
 		Object.keys(data).forEach((function(k) { return obj[k] || (obj[k] = data[k]); }));
 		
-		this._log(obj);
+		this._logger.log(obj);
 		this._not = false;
 		
 		return this;
@@ -279,10 +480,11 @@ var Test = es6now.Class(function(__super) { return {
 	
 }});
 
-exports.Test = Test;
-};
 
-__modules[5] = function(exports) {
+exports.Test = Test; return exports; }).call(this, {});
+
+var HtmlLogger_ = (function(exports) {
+
 var console = this.console || { log: function() {} },
     window = this.window;
 
@@ -303,7 +505,7 @@ function findTarget() {
     return null;
 }
 
-var HtmlLogger = es6now.Class(function(__super) { return {
+var HtmlLogger = __class(function(__super) { return {
 
     constructor: function() {
     
@@ -314,6 +516,8 @@ var HtmlLogger = es6now.Class(function(__super) { return {
     clear: function() {
     
         this.depth = 0;
+        this.passed = 0;
+        this.failed = 0;
         this.html = "";
         
         if (this.target)
@@ -329,9 +533,6 @@ var HtmlLogger = es6now.Class(function(__super) { return {
     
         this.depth += 1;
         
-        var line = "=".repeat(this.depth + 1);
-        console.log("\n" + (line) + " " + (name) + " " + (line) + "");
-        
         this._writeHeader(name, this.depth);
     },
     
@@ -343,14 +544,18 @@ var HtmlLogger = es6now.Class(function(__super) { return {
     
     log: function(result) {
     
-        console.log("" + (result.name) + ": [" + (result.pass ? "OK" : "FAIL") + "]");
+        var passed = !!result.pass;
+        
+        if (passed) this.passed++;
+        else this.failed++;
         
         this.html += 
-        "<div class='" + (result.pass ? "pass" : "fail") + "'>\n            " + (result.name) + " <span class=\"status\">[" + (result.pass ? "OK" : "FAIL") + "]</span>\n        </div>";
+        "<div class='" + (result.pass ? "pass" : "fail") + "'>\n            " + (result.name) + " <span class=\"status\">[" + (passed ? "OK" : "FAIL") + "]</span>\n        </div>";
     },
     
-    error: function(err) {
+    comment: function(msg) {
     
+        this.html += "<p class=\"comment\">" + (msg) + "</p>";
     },
     
     _writeHeader: function(name) {
@@ -381,11 +586,35 @@ var HtmlLogger = es6now.Class(function(__super) { return {
         div = null;
     }
 }});
-exports.HtmlLogger = HtmlLogger;
-};
 
-__modules[6] = function(exports) {
-var NodeLogger = es6now.Class(function(__super) { return {
+exports.HtmlLogger = HtmlLogger; return exports; }).call(this, {});
+
+var NodeLogger_ = (function(exports) {
+
+var Style = (function(exports) {
+
+    function green(msg) {
+    
+        return "\u001b[32m" + (msg) + "\u001b[39m";
+    }
+    
+    function red(msg) {
+    
+        return "\u001b[31m" + (msg) + "\u001b[39m";
+    }
+    
+    function gray(msg) {
+    
+        return "\u001b[90m" + (msg) + "\u001b[39m";
+    }
+    
+    function bold(msg) {
+    
+        return "\u001b[1m" + (msg) + "\u001b[22m";
+    }
+exports.green = green; exports.red = red; exports.gray = gray; exports.bold = bold; return exports; }).call(this, {});
+
+var NodeLogger = __class(function(__super) { return {
 
     constructor: function() {
     
@@ -395,6 +624,14 @@ var NodeLogger = es6now.Class(function(__super) { return {
     clear: function() {
     
         this.depth = 0;
+        this.passed = 0;
+        this.failed = 0;
+        this.margin = false;
+    },
+    
+    get indent() {
+    
+        return " ".repeat(Math.max(this.depth, 0) * 2);
     },
     
     end: function() {
@@ -403,10 +640,11 @@ var NodeLogger = es6now.Class(function(__super) { return {
     },
     
     pushGroup: function(name) {
-    
+        
+        this._newline();
+        this._write(Style.bold("" + (this.indent) + "" + (name) + ""));
+        
         this.depth += 1;
-        var line = "=".repeat(this.depth + 1);
-        console.log("\n" + (line) + " " + (name) + " " + (line) + "");
     },
     
     popGroup: function() {
@@ -416,397 +654,135 @@ var NodeLogger = es6now.Class(function(__super) { return {
     
     log: function(result) {
     
-        console.log("" + (result.name) + ": [" + (result.pass ? "OK" : "FAIL") + "]");
+        var passed = !!result.pass;
+        
+        if (passed) this.passed++;
+        else this.failed++;
+        
+        this._write("" + (this.indent) + "" + (result.name) + " " + (passed ? Style.green("OK") : Style.red("FAIL")) + "");
     },
     
-    error: function(err) {
+    comment: function(msg) {
     
+        this._newline();
+        this._write(this.indent + Style.gray(msg));
+        this._newline();
+    },
+    
+    _write: function(text) {
+    
+        console.log(text);
+        this.margin = false;
+    },
+    
+    _newline: function() {
+    
+        if (!this.margin)
+            console.log("");
+        
+        this.margin = true;
     }
 }});
-exports.NodeLogger = NodeLogger;
-};
 
-__modules[7] = function(exports) {
-var identity = (function(obj) { return obj; }),
-    freeze = Object.freeze || identity,
-    queue = [],
-    waiting = false,
-    asap;
+exports.NodeLogger = NodeLogger; return exports; }).call(this, {});
 
-// UUID property names used for duck-typing
-var DISPATCH = "07b06b7e-3880-42b1-ad55-e68a77514eb9",
-    IS_FAILURE = "7d24bf0f-d8b1-4783-b594-cec32313f6bc";
+var Logger_ = (function(exports) {
 
-var EMPTY_LIST_MSG = "List cannot be empty.",
-    WAS_RESOLVED_MSG = "The promise has already been resolved.",
-    CYCLE_MSG = "A promise cycle was detected.";
+var HtmlLogger = HtmlLogger_.HtmlLogger;
+var NodeLogger = NodeLogger_.NodeLogger;
 
-var THROW_DELAY = 50;
+var Logger = (typeof this.process === "object" && process.cwd) ?
+    NodeLogger :
+    HtmlLogger;
 
-// Enqueues a message
-function enqueue(future, args) {
 
-    queue.push({ fn: future[DISPATCH], args: args });
+exports.Logger = Logger; return exports; }).call(this, {});
+
+var TestRunner_ = (function(exports) {
+
+var Promise = Promise_.Promise, forEachPromise = Promise_.forEach;
+var Test = Test_.Test;
+var Logger = Logger_.Logger;
+
+var TestRunner = __class(function(__super) { return {
+
+    constructor: function() {
     
-    if (!waiting) {
+        this.logger = new Logger;
+        this.injections = {};
+    },
     
-        waiting = true;
-        asap(flush);
-    }
-}
-
-// Flushes the message queue
-function flush() {
-
-    waiting = false;
-
-    while (queue.length > 0) {
+    inject: function(obj) { var __this = this; 
+    
+        Object.keys(obj || {}).forEach((function(k) { return __this.injections[k] = obj[k]; }));
+        return this;
+    },
+    
+    run: function(tests) { var __this = this; 
+    
+        this.logger.clear();
+        this.logger.comment("Starting tests...");
         
-        // Send each message in queue
-        for (var count = queue.length, msg; count > 0; --count) {
+        return this._visit(tests).then((function(val) {
         
-            msg = queue.shift();
-            msg.fn.apply(void 0, msg.args);
-        }
-    }
-}
-
-// Returns a cycle error
-function cycleError() {
-
-    return failure(CYCLE_MSG);
-}
-
-// Future constructor
-function Future(dispatch) {
+            __this.logger.comment("Passed " + (__this.logger.passed) + " tests and failed " + (__this.logger.failed) + " tests.");
+            __this.logger.end();
+            return __this;
+        }));
+    },
     
-    this[DISPATCH] = dispatch;
-}
-
-// Registers a callback for completion when a future is complete
-Future.prototype.then = function then(onSuccess, onFail) {
-
-    onSuccess || (onSuccess = identity);
+    _exec: function(node, key) { var __this = this; 
     
-    var resolve = (function(value) { return finish(value, onSuccess); }),
-        reject = (function(value) { return finish(value, onFail); }),
-        promise = new Promise(onQueue),
-        target = this,
-        done = false;
-    
-    onQueue(onSuccess, onFail);
-    
-    return promise.future;
-    
-    function onQueue(success, error) {
-    
-        if (success && resolve) {
+        var resolver, 
+            promise = new Promise((function(r) { return resolver = r; })),
+            test = new Test(this.logger, (function(val) { return resolver.resolve(val); }));
         
-            enqueue(target, [ resolve, null ]);
-            resolve = null;
-        }
+        // Give the test a default name
+        test.name(key);
         
-        if (error && reject) {
+        return Promise.resolve().then((function($) {
         
-            enqueue(target, [ null, reject ]);
-            reject = null;
-        }
-    }
-    
-    function finish(value, transform) {
-    
-        if (!done) {
-        
-            done = true;
-            promise.resolve(applyTransform(transform, value));
-        }
-    }
-};
-
-// Begins a deferred operation
-function Promise(onQueue) {
-
-    var token = {},
-        pending = [],
-        throwable = true,
-        next = null;
-
-    this.future = freeze(new Future(dispatch));
-    this.resolve = resolve;
-    this.reject = reject;
-    
-    freeze(this);
-    
-    // Dispatch function for future
-    function dispatch(success, error, src) {
-    
-        var msg = [success, error, src || token];
-        
-        if (error)
-            throwable = false;
-        
-        if (pending) {
-        
-            pending.push(msg);
+            node[key](test, __this.injections);
             
-            if (onQueue)
-                onQueue(success, error);
-        
-        } else {
-        
-            // If a cycle is detected, convert resolution to a rejection
-            if (src === token) {
+            if (!test.async)
+                resolver.resolve(null);
             
-                next = cycleError();
-                maybeThrow();
-            }
+            return promise;
+        }));
+    },
+    
+    _visit: function(node) { var __this = this; 
+        
+        return forEachPromise(Object.keys(node), (function(k) {
+        
+            __this.logger.pushGroup(k);
             
-            enqueue(next, msg);
-        }
-    }
-    
-    // Resolves the promise
-    function resolve(value) {
-    
-        if (!pending)
-            throw new Error(WAS_RESOLVED_MSG);
-        
-        var list = pending;
-        pending = false;
-        
-        // Create a future from the provided value
-        next = when(value);
-
-        // Send internally queued messages to the next future
-        for (var i = 0; i < list.length; ++i)
-            enqueue(next, list[i]);
-        
-        maybeThrow();
-    }
-    
-    // Resolves the promise with a rejection
-    function reject(error) {
-    
-        resolve(failure(error));
-    }
-    
-    // Throws an error if the promise is rejected and there
-    // are no error handlers
-    function maybeThrow() {
-    
-        if (!throwable || !isFailure(next))
-            return;
-        
-        setTimeout((function() {
-        
-            var error = null;
-            
-            // Get the error value
-            next[DISPATCH](null, (function(val) { return error = val; }));
-            
-            // Throw it
-            if (error && throwable)
-                throw error;
-            
-        }), THROW_DELAY);
-    }
-}
-
-// Returns a future for an object
-function when(obj) {
-
-    if (obj && obj[DISPATCH])
-        return obj;
-    
-    if (obj && obj.then) {
-    
-        var promise = new Promise();
-        obj.then(promise.resolve, promise.reject);
-        return promise.future;
-    }
-    
-    // Wrap a value in an immediate future
-    return freeze(new Future((function(success) { return success && success(obj); })));
-}
-
-// Returns true if the object is a failed future
-function isFailure(obj) {
-
-    return obj && obj[IS_FAILURE];
-}
-
-// Creates a failure Future
-function failure(value) {
-
-    var future = new Future((function(success, error) { return error && error(value); }));
-    
-    // Tag the future as a failure
-    future[IS_FAILURE] = true;
-    
-    return freeze(future);
-}
-
-// Applies a promise transformation function
-function applyTransform(transform, value) {
-
-    try { return (transform || failure)(value); }
-    catch (ex) { return failure(ex); }
-}
-
-// Returns a future for every completed future in an array
-function whenAll(list) {
-
-    var count = list.length,
-        promise = new Promise(),
-        out = [],
-        value = out,
-        i;
-    
-    for (i = 0; i < list.length; ++i)
-        waitFor(list[i], i);
-    
-    if (count === 0)
-        promise.resolve(out);
-    
-    return promise.future;
-    
-    function waitFor(f, index) {
-    
-        when(f).then((function(val) { 
-        
-            out[index] = val;
-            
-            if (--count === 0)
-                promise.resolve(value);
-        
-        }), (function(err) {
-        
-            value = failure(err);
-            
-            if (--count === 0)
-                promise.resolve(value);
+            return (typeof node[k] === "function" ?
+                __this._exec(node, k) :
+                __this._visit(node[k])
+            ).then((function($) { return __this.logger.popGroup(); }));
         }));
     }
+}});
+
+
+exports.TestRunner = TestRunner; return exports; }).call(this, {});
+
+var moonUnit = (function(exports) {
+
+var TestRunner = TestRunner_.TestRunner;
+var Logger = Logger_.Logger;
+
+function runTests(tests) {
+
+    return new TestRunner().run(tests);
 }
 
-// Returns a future for the first completed future in an array
-function whenAny(list) {
-
-    if (list.length === 0)
-        throw new Error(EMPTY_LIST_MSG);
-    
-    var promise = new Promise(), i;
-    
-    for (i = 0; i < list.length; ++i)
-        when(list[i]).then((function(val) { return promise.resolve(val); }), (function(err) { return promise.reject(err); }));
-    
-    return promise.future;
-}
-
-function iterate(fn) {
-
-    var done = false,
-        stop = (function(val) { done = true; return val; }),
-        next = (function(last) { return done ? last : when(fn(stop)).then(next); });
-    
-    return when(null).then(next);
-}
-
-function forEach(list, fn) {
-
-    var i = -1;
-    
-    return iterate((function(stop) { return (++i >= list.length) ? stop() : fn(list[i], i, list); }));
-}
-
-// === Event Loop API ===
-
-asap = (function(global) {
-    
-    var msg = uuid(),
-        process = global.process,
-        window = global.window,
-        msgChannel = null,
-        list = [];
-    
-    if (process && typeof process.nextTick === "function") {
-    
-        // NodeJS
-        return process.nextTick;
-   
-    } else if (window && window.addEventListener && window.postMessage) {
-    
-        // Modern Browsers
-        if (window.MessageChannel) {
-        
-            msgChannel = new window.MessageChannel();
-            msgChannel.port1.onmessage = onmsg;
-        
-        } else {
-        
-            window.addEventListener("message", onmsg, true);
-        }
-        
-        return (function(fn) {
-        
-            list.push(fn);
-            
-            if (msgChannel !== null)
-                msgChannel.port2.postMessage(msg);
-            else
-                window.postMessage(msg, "*");
-            
-            return 1;
-        });
-    
-    } else {
-    
-        // Legacy
-        return (function(fn) { return setTimeout(fn, 0); });
-    }
-        
-    function onmsg(evt) {
-    
-        if (msgChannel || (evt.source === window && evt.data === msg)) {
-        
-            evt.stopPropagation();
-            if (list.length) list.shift()();
-        }
-    }
-    
-    function uuid() {
-    
-        return [32, 16, 16, 16, 48].map((function(bits) { return rand(bits); })).join("-");
-        
-        function rand(bits) {
-        
-            if (bits > 32) 
-                return rand(bits - 32) + rand(32);
-            
-            var str = (Math.random() * 0xffffffff >>> (32 - bits)).toString(16),
-                len = bits / 4 >>> 0;
-            
-            if (str.length < len) 
-                str = (new Array(len - str.length + 1)).join("0") + str;
-            
-            return str;
-        }
-    }
-    
-})(this);
-
-Promise.when = when;
-Promise.whenAny = whenAny;
-Promise.whenAll = whenAll;
-Promise.forEach = forEach;
-Promise.iterate = iterate;
-Promise.reject = failure;
 
 
-exports.Promise = Promise;
-};
+exports.runTests = runTests; exports.TestRunner = TestRunner; return exports; }).call(this, {});
 
-__require(0, exports);
+Object.keys(moonUnit).forEach(function(k) { exports[k] = moonUnit[k]; });
 
 
-}, []);
+}, [], "");

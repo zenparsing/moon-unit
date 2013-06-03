@@ -1,3 +1,26 @@
+module Style {
+
+    export function green(msg) {
+    
+        return `\x1B[32m${ msg }\x1B[39m`;
+    }
+    
+    export function red(msg) {
+    
+        return `\x1B[31m${ msg }\x1B[39m`;
+    }
+    
+    export function gray(msg) {
+    
+        return `\x1B[90m${ msg }\x1B[39m`;
+    }
+    
+    export function bold(msg) {
+    
+        return `\x1B[1m${ msg }\x1B[22m`;
+    }
+}
+
 export class NodeLogger {
 
     constructor() {
@@ -8,6 +31,14 @@ export class NodeLogger {
     clear() {
     
         this.depth = 0;
+        this.passed = 0;
+        this.failed = 0;
+        this.margin = false;
+    }
+    
+    get indent() {
+    
+        return " ".repeat(Math.max(this.depth, 0) * 2);
     }
     
     end() {
@@ -16,10 +47,11 @@ export class NodeLogger {
     }
     
     pushGroup(name) {
-    
+        
+        this._newline();
+        this._write(Style.bold(`${ this.indent }${ name }`));
+        
         this.depth += 1;
-        var line = "=".repeat(this.depth + 1);
-        console.log(`\n${ line } ${ name } ${ line }`);
     }
     
     popGroup() {
@@ -29,10 +61,32 @@ export class NodeLogger {
     
     log(result) {
     
-        console.log(`${ result.name }: [${ result.pass ? "OK" : "FAIL" }]`);
+        var passed = !!result.pass;
+        
+        if (passed) this.passed++;
+        else this.failed++;
+        
+        this._write(`${ this.indent }${ result.name } ${ passed ? Style.green("OK") : Style.red("FAIL") }`);
     }
     
-    error(err) {
+    comment(msg) {
     
+        this._newline();
+        this._write(this.indent + Style.gray(msg));
+        this._newline();
+    }
+    
+    _write(text) {
+    
+        console.log(text);
+        this.margin = false;
+    }
+    
+    _newline() {
+    
+        if (!this.margin)
+            console.log("");
+        
+        this.margin = true;
     }
 }

@@ -29,6 +29,8 @@ export class HtmlLogger {
     clear() {
     
         this.depth = 0;
+        this.passed = 0;
+        this.failed = 0;
         this.html = "";
         
         if (this.target)
@@ -44,9 +46,6 @@ export class HtmlLogger {
     
         this.depth += 1;
         
-        var line = "=".repeat(this.depth + 1);
-        console.log(`\n${ line } ${ name } ${ line }`);
-        
         this._writeHeader(name, this.depth);
     }
     
@@ -58,16 +57,20 @@ export class HtmlLogger {
     
     log(result) {
     
-        console.log(`${ result.name }: [${ result.pass ? "OK" : "FAIL" }]`);
+        var passed = !!result.pass;
+        
+        if (passed) this.passed++;
+        else this.failed++;
         
         this.html += 
         `<div class='${ result.pass ? "pass" : "fail" }'>
-            ${ result.name } <span class="status">[${ result.pass ? "OK" : "FAIL" }]</span>
+            ${ result.name } <span class="status">[${ passed ? "OK" : "FAIL" }]</span>
         </div>`;
     }
     
-    error(err) {
+    comment(msg) {
     
+        this.html += `<p class="comment">${ msg }</p>`;
     }
     
     _writeHeader(name) {
