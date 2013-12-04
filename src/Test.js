@@ -67,14 +67,11 @@ function equal(a, b) {
 
 export class Test {
 
-	constructor(logger, done) {
+	constructor(logger) {
 	
 		this._name = "";
 		this._not = false;
 		this._logger = logger;
-		this._done = done;
-		
-		this.async = false;
 	}
 	
 	_(name) {
@@ -93,11 +90,6 @@ export class Test {
 	
 		this._not = !this._not;
 		return this;
-	}
-	
-	done() {
-	
-	    return this._done();
 	}
 	
 	assert(val) {

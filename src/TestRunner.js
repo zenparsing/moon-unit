@@ -33,18 +33,14 @@ export class TestRunner {
     
         var resolver, 
             promise = new Promise(r => resolver = r),
-            test = new Test(this.logger, val => resolver.resolve(val));
+            test = new Test(this.logger);
         
         // Give the test a default name
         test.name(key);
         
         return Promise.resolve().then($=> {
         
-            node[key](test, this.injections);
-            
-            if (!test.async)
-                resolver.resolve(null);
-            
+            resolver.resolve(node[key](test, this.injections));    
             return promise;
         });
     }
