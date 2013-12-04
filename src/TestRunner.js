@@ -1,4 +1,3 @@
-import { Promise, forEach as forEachPromise } from "Promise.js";
 import { Test } from "Test.js";
 import { Logger } from "Logger.js";
 
@@ -31,8 +30,8 @@ export class TestRunner {
     
     _exec(node, key) {
     
-        var resolver, 
-            promise = new Promise(r => resolver = r),
+        var resolve, 
+            promise = new Promise(r => resolve = r),
             test = new Test(this.logger);
         
         // Give the test a default name
@@ -40,21 +39,29 @@ export class TestRunner {
         
         return Promise.resolve().then($=> {
         
-            resolver.resolve(node[key](test, this.injections));    
+            resolve(node[key](test, this.injections));    
             return promise;
         });
     }
     
     _visit(node) {
         
-        return forEachPromise(Object.keys(node), k => {
+        var list = Object.keys(node);
         
-            this.logger.pushGroup(k);
+        var next = $=> {
+        
+            if (list.length === 0)
+                return this.logger.popGroup();
             
-            return (typeof node[k] === "function" ?
+            var k = list.shift();
+            
+            var p = typeof node[k] === "function" ?
                 this._exec(node, k) :
-                this._visit(node[k])
-            ).then($=> this.logger.popGroup());
-        });
+                this._visit(node[k]);
+            
+            return p.then(next);
+        };
+        
+        return Promise.resolve(next());
     }
 }
