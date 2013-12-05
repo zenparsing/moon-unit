@@ -46,20 +46,20 @@ export class TestRunner {
     
     _visit(node) {
         
-        var list = Object.keys(node);
+        var list = Object.keys(node), k;
         
         var next = $=> {
         
             if (list.length === 0)
-                return this.logger.popGroup();
+                return;
             
-            var k = list.shift();
+            this.logger.pushGroup(k = list.shift());
             
             var p = typeof node[k] === "function" ?
                 this._exec(node, k) :
                 this._visit(node[k]);
             
-            return p.then(next);
+            return p.then($=> this.logger.popGroup()).then(next);
         };
         
         return Promise.resolve(next());
