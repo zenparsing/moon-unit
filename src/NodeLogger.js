@@ -51,7 +51,8 @@ export class NodeLogger {
         if (passed) this.passed++;
         else this.failed++;
         
-        this._write(`${ this.indent }${ result.name } ${ passed ? Style.green("OK") : Style.red("FAIL") }`);
+        this._write(`${ this.indent }${ result.name } ` +
+            `${ Style.bold(passed ? Style.green("OK") : Style.red("FAIL")) }`);
     }
     
     comment(msg) {
