@@ -23,8 +23,8 @@ function isObject(obj) {
 // Returns true if the arguments are "equal"
 function equal(a, b) {
 
-	if (a === b)
-		return true;
+    if (Object.is(a, b))
+        return true;
 
 	// Dates must have equal time values
 	if (isDate(a) && isDate(b))
@@ -110,14 +110,8 @@ export class Test {
 		});
 	}
 	
-	throws(type, fn) {
+	throws(fn, type) {
 	
-		if (!fn) {
-		
-			fn = type;
-			type = null;
-		}
-		
 		var threw = false;
 		
 		// TODO: Most errors will just be of type "Error".  How can

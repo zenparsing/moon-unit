@@ -34,9 +34,6 @@ export class TestRunner {
             promise = new Promise(r => resolve = r),
             test = new Test(this.logger);
         
-        // Give the test a default name
-        test.name(key);
-        
         return Promise.resolve().then($=> {
         
             resolve(node[key](test, this.injections));    
