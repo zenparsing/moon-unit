@@ -30,7 +30,7 @@ export class TestRunner {
 
     _exec(node, key) {
 
-        var resolve,
+        let resolve,
             promise = new Promise(r => resolve = r),
             test = new Test(this.logger);
 
@@ -43,16 +43,18 @@ export class TestRunner {
 
     _visit(node) {
 
-        var list = Object.keys(node), k;
+        let list = Object.keys(node), k;
 
-        var next = $=> {
+        let next = $=> {
 
             if (list.length === 0)
                 return;
 
-            this.logger.pushGroup(k = list.shift());
+            let k = list.shift();
 
-            var p = typeof node[k] === "function" ?
+            this.logger.pushGroup(k);
+
+            let p = typeof node[k] === "function" ?
                 this._exec(node, k) :
                 this._visit(node[k]);
 

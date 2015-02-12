@@ -1,4 +1,4 @@
-var OP_toString = Object.prototype.toString,
+let OP_toString = Object.prototype.toString,
     OP_hasOwnProperty = Object.prototype.hasOwnProperty;
 
 // Returns the internal class of an object
@@ -29,127 +29,125 @@ function equal(a, b) {
 	// Dates must have equal time values
 	if (isDate(a) && isDate(b))
 		return a.getTime() === b.getTime();
-	
+
 	// Non-objects must be strictly equal (types must be equal)
 	if (!isObject(a) || !isObject(b))
 		return a === b;
-	
+
 	// Prototypes must be identical.  getPrototypeOf may throw on
 	// ES3 engines that don't provide access to the prototype.
 	try {
-	
+
 	    if (Object.getPrototypeOf(a) !== Object.getPrototypeOf(b))
 		    return false;
-	
+
 	} catch (err) {}
-	
-	var aKeys = Object.keys(a),
-		bKeys = Object.keys(b),
-		i;
-	
+
+	let aKeys = Object.keys(a),
+		bKeys = Object.keys(b);
+
 	// Number of own properties must be identical
 	if (aKeys.length !== bKeys.length)
 		return false;
-	
-	for (i = 0; i < aKeys.length; ++i) {
-	
+
+	for (let i = 0; i < aKeys.length; ++i) {
+
 		// Names of own properties must be identical
 		if (!OP_hasOwnProperty.call(b, aKeys[i]))
 			return false;
-		
+
 		// Values of own properties must be equal
 		if (!equal(a[aKeys[i]], b[aKeys[i]]))
 			return false;
 	}
-	
+
 	return true;
 }
 
 export class Test {
 
 	constructor(logger) {
-	
+
 		this._name = "";
 		this._not = false;
 		this._logger = logger;
 	}
-	
+
 	_(name) {
-	
+
 	    this._name = name;
 	    return this;
 	}
-	
+
 	name(name) {
-	
+
 		this._name = name;
 		return this;
 	}
-	
+
 	not() {
-	
+
 		this._not = !this._not;
 		return this;
 	}
-	
+
 	assert(val) {
-	
+
 		return this._assert(val, {
-		
+
 			method: "assert"
 		});
 	}
-	
+
 	equals(actual, expected) {
-	
+
 		return this._assert(equal(actual, expected), {
-		
+
 			actual: actual,
 			expected: expected,
 			method: "equal"
 		});
 	}
-	
+
 	throws(fn, type) {
-	
-		var threw = false;
-		
+
+		let threw = false;
+
 		// TODO: Most errors will just be of type "Error".  How can
 		// we communicate type information, then?
-		
-		try { fn(); } 
+
+		try { fn(); }
 		catch (x) { threw = (!type || x instanceof type); }
-		
+
 		return this._assert(threw, {
-		
+
 			method: "throws"
 		});
 	}
-	
+
 	comment(msg) {
-	
+
 	    this._logger.comment(msg);
 	}
-	
+
 	_assert(pred, data) {
-	
-		var pass = !!pred, 
-			method = data.method || "",
-			obj;
-		
+
+		let pass = !!pred,
+			method = data.method || "";
+
 		if (this._not) {
-		
+
 			pass = !pass;
 			method = "not " + method;
 		}
-		
-		obj = { name: this._name, pass: pass, method: method };
+
+		let obj = { name: this._name, pass: pass, method: method };
 		Object.keys(data).forEach(k => obj[k] || (obj[k] = data[k]));
-		
+
 		this._logger.log(obj);
 		this._not = false;
-		
+
 		return this;
 	}
-	
+
 }

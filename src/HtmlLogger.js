@@ -2,9 +2,9 @@ var ELEMENT_ID = "unit-test-output";
 
 function findTarget() {
 
-    var e;
+    let e;
 
-    for (var w = window; w; w = w.parent) {
+    for (let w = window; w; w = w.parent) {
 
         e = w.document.getElementById(ELEMENT_ID);
 
@@ -54,7 +54,7 @@ export class HtmlLogger {
 
     log(result) {
 
-        var passed = !!result.pass;
+        let passed = !!result.pass;
 
         if (passed) this.passed++;
         else this.failed++;
@@ -72,7 +72,7 @@ export class HtmlLogger {
 
     _writeHeader(name) {
 
-        var level = Math.min(Math.max(2, this.depth + 1), 6);
+        let level = Math.min(Math.max(2, this.depth + 1), 6);
         this.html += `<h${ level }>${ name }</h${ level }>`;
     }
 
@@ -81,7 +81,7 @@ export class HtmlLogger {
         if (!this.target)
             return;
 
-        var document = this.target.ownerDocument,
+        let document = this.target.ownerDocument,
             div = document.createElement("div"),
             frag = document.createDocumentFragment(),
             child;
