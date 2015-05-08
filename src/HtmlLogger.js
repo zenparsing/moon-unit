@@ -1,4 +1,4 @@
-var ELEMENT_ID = "unit-test-output";
+const ELEMENT_ID = "unit-test-output";
 
 function findTarget() {
 
@@ -68,6 +68,11 @@ export class HtmlLogger {
     comment(msg) {
 
         this.html += `<p class="comment">${ msg }</p>`;
+    }
+
+    error(e) {
+
+        this.html += `<p class="error">${ e.stack }</p>`;
     }
 
     _writeHeader(name) {

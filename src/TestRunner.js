@@ -38,6 +38,11 @@ export class TestRunner {
 
             resolve(node[key](test, this.injections));
             return promise;
+
+        }).catch(error => {
+
+            this.logger.error(error);
+            throw error;
         });
     }
 

@@ -55,6 +55,11 @@ export class NodeLogger {
             `${ Style.bold(passed ? Style.green("OK") : Style.red("FAIL")) }`);
     }
 
+    error(e) {
+
+        this._write("\n" + Style.red(e.stack) + "\n");
+    }
+
     comment(msg) {
 
         this._newline();
