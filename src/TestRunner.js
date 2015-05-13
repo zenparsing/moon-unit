@@ -28,16 +28,11 @@ export class TestRunner {
         });
     }
 
-    _exec(node, key) {
+    _exec(fn) {
 
-        let resolve,
-            promise = new Promise(r => resolve = r),
-            test = new Test(this.logger);
+        return new Promise(resolve => {
 
-        return Promise.resolve().then($=> {
-
-            resolve(node[key](test, this.injections));
-            return promise;
+            resolve(fn(new Test(this.logger), this.injections));
 
         }).catch(error => {
 
@@ -48,24 +43,27 @@ export class TestRunner {
 
     _visit(node) {
 
-        let list = Object.keys(node), k;
+        return new Promise(resolve => {
 
-        let next = $=> {
+            let list = Object.keys(node);
 
-            if (list.length === 0)
-                return;
+            let next = $=> {
 
-            let k = list.shift();
+                if (list.length === 0)
+                    return;
 
-            this.logger.pushGroup(k);
+                let k = list.shift();
 
-            let p = typeof node[k] === "function" ?
-                this._exec(node, k) :
-                this._visit(node[k]);
+                this.logger.pushGroup(k);
 
-            return p.then($=> this.logger.popGroup()).then(next);
-        };
+                let p = typeof node[k] === "function" ?
+                    this._exec(node[k]) :
+                    this._visit(node[k]);
 
-        return Promise.resolve(next());
+                return p.then($=> this.logger.popGroup()).then(next);
+            };
+
+            resolve(next());
+        });
     }
 }
