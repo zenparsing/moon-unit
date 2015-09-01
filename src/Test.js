@@ -20,10 +20,19 @@ function isObject(obj) {
     return obj && typeof obj === "object";
 }
 
+// ES6 Object.is
+function sameValue(left, right) {
+
+    if (left === right)
+        return left !== 0 || 1 / left === 1 / right;
+
+    return left !== left && right !== right;
+}
+
 // Returns true if the arguments are "equal"
 function equal(a, b) {
 
-    if (Object.is(a, b))
+    if (sameValue(a, b))
         return true;
 
 	// Dates must have equal time values
