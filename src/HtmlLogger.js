@@ -1,4 +1,4 @@
-const ELEMENT_ID = "unit-test-output";
+const ELEMENT_ID = "moon-unit";
 
 function findTarget() {
 
@@ -10,6 +10,9 @@ function findTarget() {
 
         if (e)
             return e;
+
+        if (w.parent === w)
+            break;
     }
 
     return null;
@@ -42,7 +45,6 @@ export class HtmlLogger {
     pushGroup(name) {
 
         this.depth += 1;
-
         this._writeHeader(name, this.depth);
     }
 
@@ -72,7 +74,8 @@ export class HtmlLogger {
 
     error(e) {
 
-        this.html += `<p class="error">${ e.stack }</p>`;
+        if (e)
+            this.html += `<p class="error">${ e.stack }</p>`;
     }
 
     _writeHeader(name) {
@@ -97,9 +100,7 @@ export class HtmlLogger {
         while (child = div.firstChild)
             frag.appendChild(child);
 
-        if (this.target)
-            this.target.appendChild(frag);
-
+        this.target.appendChild(frag);
         div = null;
     }
 }

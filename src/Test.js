@@ -94,34 +94,36 @@ export class Test {
 	assert(val) {
 
 		return this._assert(val, {
-
-			method: "assert"
+			method: "assert",
+            actual: val,
+            expected: true,
 		});
 	}
 
 	equals(actual, expected) {
 
 		return this._assert(equal(actual, expected), {
-
-			actual: actual,
-			expected: expected,
+			actual,
+			expected,
 			method: "equal"
 		});
 	}
 
-	throws(fn, type) {
+	throws(fn, error) {
 
-		let threw = false;
+		let threw = false,
+            actual;
 
-		// TODO: Most errors will just be of type "Error".  How can
-		// we communicate type information, then?
-
-		try { fn(); }
-		catch (x) { threw = (!type || x instanceof type); }
+		try { fn() }
+		catch (x) {
+            actual = x;
+            threw = (error === undefined || x === error || x instanceof error);
+        }
 
 		return this._assert(threw, {
-
-			method: "throws"
+			method: "throws",
+            actual,
+            expected: error,
 		});
 	}
 
@@ -136,7 +138,6 @@ export class Test {
 			method = data.method || "";
 
 		if (this._not) {
-
 			pass = !pass;
 			method = "not " + method;
 		}

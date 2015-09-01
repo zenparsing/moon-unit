@@ -15,33 +15,39 @@ export class NodeLogger {
 
     clear() {
 
-        this.depth = 0;
         this.passed = 0;
         this.failed = 0;
+        this.failList = [];
+        this.path = [];
         this.margin = false;
     }
 
     get indent() {
 
-        return " ".repeat(Math.max(this.depth, 0) * 2);
+        return " ".repeat(Math.max(this.path.length, 0) * 2);
     }
 
     end() {
 
-        // Empty
+        this.failList.forEach(({ path, result }) => {
+
+            this._write(Style.bold(path + " > " + result.name));
+            this._write("  Actual: " + result.actual);
+            this._write("  Expected: " + result.expected);
+            this._newline();
+        });
     }
 
     pushGroup(name) {
 
         this._newline();
         this._write(Style.bold(`${ this.indent }${ name }`));
-
-        this.depth += 1;
+        this.path.push(name);
     }
 
     popGroup() {
 
-        this.depth -= 1;
+        this.path.pop();
     }
 
     log(result) {
@@ -51,13 +57,17 @@ export class NodeLogger {
         if (passed) this.passed++;
         else this.failed++;
 
+        if (!passed)
+            this.failList.push({ path: this.path.join(" > "), result });
+
         this._write(`${ this.indent }${ result.name } ` +
             `${ Style.bold(passed ? Style.green("OK") : Style.red("FAIL")) }`);
     }
 
     error(e) {
 
-        this._write("\n" + Style.red(e.stack) + "\n");
+        if (e)
+            this._write("\n" + Style.red(e.stack) + "\n");
     }
 
     comment(msg) {
