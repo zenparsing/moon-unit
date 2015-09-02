@@ -24,7 +24,7 @@ export class NodeLogger {
 
     get indent() {
 
-        return " ".repeat(Math.max(this.path.length, 0) * 2);
+        return new Array(Math.max(this.path.length, 0) * 2 + 1).join(" ");
     }
 
     end() {
