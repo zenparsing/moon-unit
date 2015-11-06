@@ -31,9 +31,12 @@ export class NodeLogger {
 
         this.failList.forEach(({ path, result }) => {
 
-            this._write(Style.bold(path + " > " + result.name));
-            this._write("  Actual: " + result.actual);
-            this._write("  Expected: " + result.expected);
+            if (result.name)
+                path += " > " + result.name;
+
+            this._write(Style.bold("[" + path + "]"));
+            this._write("Actual: " + result.actual);
+            this._write("Expected: " + result.expected);
             this._newline();
         });
     }
