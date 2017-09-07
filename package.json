@@ -1,6 +1,6 @@
 {
     "name": "moon-unit",
-    "version": "0.1.2",
+    "version": "0.1.3",
     "description": "Out of this world unit testing",
     "homepage": "https://github.com/zenparsing/moon-unit",
     "main": "./build/moon-unit.js"
