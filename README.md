@@ -1,3 +1,3 @@
-## MoonUnit ##
+# moon-unit
 
-MoonUnit is a simple unit testing library for Javascript.
+Out of this world unit testing.

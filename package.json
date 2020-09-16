@@ -1,7 +1,13 @@
 {
-    "name": "moon-unit",
-    "version": "0.2.2",
-    "description": "Out of this world unit testing",
-    "homepage": "https://github.com/zenparsing/moon-unit",
-    "main": "./build/moon-unit.js"
+  "name": "moon-unit",
+  "version": "0.3.1",
+  "description": "Out of this world unit testing",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zenparsing/moon-unit.git"
+  },
+  "homepage": "https://github.com/zenparsing/moon-unit",
+  "main": "./moon-unit.js",
+  "type": "module"
 }
