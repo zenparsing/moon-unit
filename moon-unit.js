@@ -88,19 +88,19 @@ let unicode = {
 
 class ConsoleLogger {
   constructor() {
-    this.depth = 0;
+    this.path = [];
     this.tests = 0;
     this.errors = [];
   }
 
   onGroupBegin(name) {
-    this._print(this.depth === 0 ? '' : name);
-    this.depth += 1;
+    this._print(this.path.length === 0 ? '' : name);
+    this.path.push(name);
   }
 
   onGroupEnd() {
-    this.depth -= 1;
-    if (this.depth === 1) {
+    this.path.pop();
+    if (this.path.length === 1) {
       this._print();
     }
   }
@@ -113,7 +113,8 @@ class ConsoleLogger {
   onFailure(name, error) {
     this.tests += 1;
     this._print(style.red(unicode.x) + ' ' + style.gray(name));
-    this.errors.push({ name, error });
+    let path = this.path.slice(1).join('/');
+    this.errors.push({ name, path, error });
   }
 
   onEnd() {
@@ -133,12 +134,14 @@ class ConsoleLogger {
   }
 
   _print(msg) {
-    console.log(msg ? ' '.repeat(this.depth * 2) + msg : ''); // eslint-disable-line
+    let depth = this.path.length;
+    console.log(msg ? ' '.repeat(depth * 2) + msg : '');
   }
 
-  _printError({ error }) {
+  _printError({ name, path, error }) {
     let errorString = error.stack;
     errorString = errorString.replace(/(^|\n)/g, '\n  ');
+    this._print(`  FAILED: "${ path ? path + ' - ' + name : name }"`);
     this._print(errorString);
   }
 }
@@ -147,7 +150,7 @@ async function runTests(logger = new ConsoleLogger()) {
   let beforeEach = [];
   let afterEach = [];
 
-  async function visit(node, depth) {
+  async function visit(node) {
     if (node.test) {
       for (let fn of beforeEach) {
         await fn();
@@ -185,7 +188,7 @@ async function runTests(logger = new ConsoleLogger()) {
     logger.onGroupBegin(node.name);
 
     for (let child of node.nodes) {
-      await visit(child, depth + 1);
+      await visit(child);
     }
 
     logger.onGroupEnd();
@@ -203,7 +206,7 @@ async function runTests(logger = new ConsoleLogger()) {
     }
   }
 
-  await visit(treeBuilder.root, 0);
+  await visit(treeBuilder.root);
 
   logger.onEnd();
 }
