@@ -14,4 +14,9 @@ describe('Some simple tests', () => {
     await 1;
     assert.ok(true);
   });
+
+  it('should show the time if the test is slow', async () => {
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    assert.ok(true);
+  });
 });

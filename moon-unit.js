@@ -105,16 +105,20 @@ class ConsoleLogger {
     }
   }
 
-  onSuccess(name) {
+  onResult(result) {
+    let { name, error, elapsedTime } = result;
     this.tests += 1;
-    this._print(style.green(unicode.check) + ' ' + style.gray(name));
-  }
-
-  onFailure(name, error) {
-    this.tests += 1;
-    this._print(style.red(unicode.x) + ' ' + style.gray(name));
-    let path = this.path.slice(1).join('/');
-    this.errors.push({ name, path, error });
+    if (error) {
+      this._print(style.red(unicode.x) + ' ' + style.gray(name));
+      let path = this.path.slice(1).join('/');
+      this.errors.push({ name, path, error });
+    } else {
+      let out = style.green(unicode.check) + ' ' + style.gray(name);
+      if (elapsedTime > 500) {
+        out += ' ' + style.gray(`(${elapsedTime}ms)`);
+      }
+      this._print(out);
+    }
   }
 
   onEnd() {
@@ -156,12 +160,20 @@ async function runTests(logger = new ConsoleLogger()) {
         await fn();
       }
 
+      let startTime = Date.now();
+      let error = null;
+
       try {
         await node.test();
-        logger.onSuccess(node.name);
-      } catch (error) {
-        logger.onFailure(node.name, error);
+      } catch (err) {
+        error = err;
       }
+
+      logger.onResult({
+        name: node.name,
+        error,
+        elapsedTime: Date.now() - startTime
+      });
 
       for (let fn of afterEach) {
         await fn();
